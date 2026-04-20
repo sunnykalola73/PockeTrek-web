@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Profile, Household } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { User, Home, Copy, Check, LogOut, Download } from "lucide-react";
+import { User, Home, Copy, Check, LogOut, Download, Moon, Sun } from "lucide-react";
 
 export default function SettingsPage() {
   const supabase = createClient();
@@ -18,6 +18,11 @@ export default function SettingsPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [joinMsg, setJoinMsg] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [darkMode, setDarkMode] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -33,6 +38,8 @@ export default function SettingsPage() {
       .eq("id", user.id)
       .single();
     setProfile(prof);
+    setFirstName(prof?.first_name ?? "");
+    setLastName(prof?.last_name ?? "");
 
     if (prof?.household_id) {
       const { data: hh } = await supabase
@@ -47,7 +54,30 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadData();
+    // Check for saved dark mode preference
+    const savedDarkMode = localStorage.getItem("darkMode") === "true";
+    setDarkMode(savedDarkMode);
+    if (savedDarkMode) {
+      document.documentElement.classList.add("dark");
+    }
   }, [loadData]);
+
+  async function saveProfile() {
+    if (!profile) return;
+    setSaving(true);
+
+    await supabase
+      .from("profiles")
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+      })
+      .eq("id", profile.id);
+
+    setSaving(false);
+    setEditingProfile(false);
+    loadData();
+  }
 
   async function copyInvite() {
     if (!household) return;
@@ -86,6 +116,17 @@ export default function SettingsPage() {
   async function signOut() {
     await supabase.auth.signOut();
     router.push("/login");
+  }
+
+  function toggleDarkMode() {
+    const newDarkMode = !darkMode;
+    setDarkMode(newDarkMode);
+    localStorage.setItem("darkMode", String(newDarkMode));
+    if (newDarkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }
 
   async function exportCSV() {
@@ -138,17 +179,81 @@ export default function SettingsPage() {
         animate={{ opacity: 1, y: 0 }}
         className="theme-card p-5 space-y-4"
       >
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl gradient-accent flex items-center justify-center text-white text-xl font-bold shadow-md">
-            {(profile?.first_name ?? "?").charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <p className="font-bold text-lg">
-              {profile?.first_name ?? ""} {profile?.last_name ?? ""}
-            </p>
-            <p className="text-sm text-[rgb(var(--text-secondary))]">{email}</p>
-          </div>
-        </div>
+        {editingProfile ? (
+          <>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-2xl gradient-accent flex items-center justify-center text-white text-xl font-bold shadow-md">
+                {(firstName ?? "?").charAt(0).toUpperCase()}
+              </div>
+              <p className="text-sm text-[rgb(var(--text-secondary))]">{email}</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase text-[rgb(var(--text-secondary))] mb-1 block">
+                  First Name
+                </label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="First name"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-[rgb(var(--text-secondary))] mb-1 block">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Last name"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                onClick={() => {
+                  setEditingProfile(false);
+                  setFirstName(profile?.first_name ?? "");
+                  setLastName(profile?.last_name ?? "");
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-[rgb(var(--text-secondary))]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveProfile}
+                disabled={saving}
+                className="px-5 py-2 rounded-xl text-sm font-semibold text-white gradient-accent disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-4 flex-1">
+                <div className="w-14 h-14 rounded-2xl gradient-accent flex items-center justify-center text-white text-xl font-bold shadow-md">
+                  {(profile?.first_name ?? "?").charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-bold text-lg">
+                    {profile?.first_name ?? ""} {profile?.last_name ?? ""}
+                  </p>
+                  <p className="text-sm text-[rgb(var(--text-secondary))]">{email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingProfile(true)}
+                className="px-3 py-2 rounded-lg text-sm font-medium bg-[rgb(var(--accent))]/10 text-[rgb(var(--accent))] hover:bg-[rgb(var(--accent))]/20 transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
 
       {/* Household */}
@@ -242,7 +347,40 @@ export default function SettingsPage() {
         </button>
 
         <button
-          onClick={signOut}
+          onClick={toggleDarkMode}
+          className="theme-card p-4 w-full flex items-center gap-4 hover:bg-[rgb(var(--bg-secondary))] transition-colors text-left"
+        >
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${darkMode
+                ? "bg-[rgb(var(--accent-secondary))]"
+                : "bg-[rgb(var(--accent))]"
+              }`}
+          >
+            {darkMode ? <Moon size={18} /> : <Sun size={18} />}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm">
+              {darkMode ? "Dark Mode" : "Light Mode"}
+            </p>
+            <p className="text-xs text-[rgb(var(--text-secondary))]">
+              {darkMode ? "Currently enabled" : "Currently enabled"}
+            </p>
+          </div>
+          <div
+            className={`w-12 h-7 rounded-full transition-colors ${darkMode ? "bg-[rgb(var(--accent))]" : "bg-[rgb(var(--bg-secondary))]"
+              } flex items-center p-1`}
+          >
+            <motion.div
+              layout
+              className="w-5 h-5 bg-white rounded-full"
+              initial={false}
+              animate={{ x: darkMode ? 20 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            />
+          </div>
+        </button>
+
+        <button
           className="theme-card p-4 w-full flex items-center gap-4 hover:bg-[rgb(var(--expense))]/5 transition-colors text-left"
         >
           <div className="w-10 h-10 rounded-xl bg-[rgb(var(--expense))]/10 flex items-center justify-center text-[rgb(var(--expense))]">

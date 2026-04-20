@@ -18,9 +18,16 @@ export default function BudgetsPage() {
   const [newCategory, setNewCategory] = useState("food");
   const [newLimit, setNewLimit] = useState("");
   const [saving, setSaving] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const pageSize = 100;
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (pageOffset: number = 0) => {
+    const isFirstPage = pageOffset === 0;
+    if (isFirstPage) setLoading(true);
+    else setLoadingMore(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -31,36 +38,56 @@ export default function BudgetsPage() {
       .eq("id", user.id)
       .single();
     if (!prof?.household_id) return;
-    setHouseholdId(prof.household_id);
+
+    if (isFirstPage) setHouseholdId(prof.household_id);
 
     const { data: bds } = await supabase
       .from("budgets")
       .select("*")
       .eq("household_id", prof.household_id)
-      .order("category");
-    setBudgets(bds ?? []);
+      .order("category")
+      .range(pageOffset, pageOffset + pageSize);
+
+    if (isFirstPage) {
+      setBudgets(bds ?? []);
+    } else {
+      setBudgets((prev) => [...prev, ...(bds ?? [])]);
+    }
+
+    setHasMore((bds?.length ?? 0) === pageSize + 1);
 
     // Get current month spending per category
-    const monthYear = formatMonthYearQuery(new Date());
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("category, amount")
-      .eq("household_id", prof.household_id)
-      .eq("transaction_type", "expense")
-      .gte("transaction_date", `${monthYear}-01`)
-      .lte("transaction_date", `${monthYear}-31`);
+    if (isFirstPage) {
+      const monthYear = formatMonthYearQuery(new Date());
+      const { data: txs } = await supabase
+        .from("transactions")
+        .select("category, amount")
+        .eq("household_id", prof.household_id)
+        .eq("transaction_type", "expense")
+        .gte("transaction_date", `${monthYear}-01`)
+        .lte("transaction_date", `${monthYear}-31`);
 
-    const spendMap: Record<string, number> = {};
-    txs?.forEach((tx: Pick<Transaction, "category" | "amount">) => {
-      spendMap[tx.category] = (spendMap[tx.category] ?? 0) + tx.amount;
-    });
-    setSpending(spendMap);
-    setLoading(false);
-  }, [supabase]);
+      const spendMap: Record<string, number> = {};
+      txs?.forEach((tx: Pick<Transaction, "category" | "amount">) => {
+        spendMap[tx.category] = (spendMap[tx.category] ?? 0) + tx.amount;
+      });
+      setSpending(spendMap);
+    }
+
+    if (isFirstPage) setLoading(false);
+    else setLoadingMore(false);
+  }, [supabase, pageSize]);
 
   useEffect(() => {
-    loadData();
+    setOffset(0);
+    loadData(0);
   }, [loadData]);
+
+  const loadMore = useCallback(() => {
+    const nextOffset = offset + pageSize;
+    setOffset(nextOffset);
+    loadData(nextOffset);
+  }, [offset, pageSize, loadData]);
 
   async function addBudget() {
     const limit = parseFloat(newLimit);
@@ -74,12 +101,14 @@ export default function BudgetsPage() {
     setSaving(false);
     setShowAdd(false);
     setNewLimit("");
-    loadData();
+    setOffset(0);
+    loadData(0);
   }
 
   async function deleteBudget(id: string) {
     await supabase.from("budgets").delete().eq("id", id);
-    loadData();
+    setOffset(0);
+    loadData(0);
   }
 
   return (
@@ -156,71 +185,84 @@ export default function BudgetsPage() {
           <p className="text-sm mt-1">Set monthly caps for categories</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {budgets.map((b, i) => {
-            const spent = spending[b.category] ?? 0;
-            const pct = Math.min((spent / b.monthly_limit) * 100, 100);
-            const isOver = spent > b.monthly_limit;
-            const barColor = isOver
-              ? "rgb(var(--expense))"
-              : pct > 80
-                ? "rgb(var(--caution))"
-                : "rgb(var(--safe))";
+        <>
+          <div className="space-y-3">
+            {budgets.map((b, i) => {
+              const spent = spending[b.category] ?? 0;
+              const pct = Math.min((spent / b.monthly_limit) * 100, 100);
+              const isOver = spent > b.monthly_limit;
+              const barColor = isOver
+                ? "rgb(var(--expense))"
+                : pct > 80
+                  ? "rgb(var(--caution))"
+                  : "rgb(var(--safe))";
 
-            return (
-              <motion.div
-                key={b.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="theme-card p-5"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{getCategoryEmoji(b.category)}</span>
-                    <div>
-                      <p className="font-semibold">{getCategoryLabel(b.category)}</p>
-                      <p className="text-xs text-[rgb(var(--text-secondary))]">
-                        ${spent.toFixed(2)} / ${b.monthly_limit.toFixed(2)}
-                      </p>
+              return (
+                <motion.div
+                  key={b.id}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="theme-card p-5"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{getCategoryEmoji(b.category)}</span>
+                      <div>
+                        <p className="font-semibold">{getCategoryLabel(b.category)}</p>
+                        <p className="text-xs text-[rgb(var(--text-secondary))]">
+                          ${spent.toFixed(2)} / ${b.monthly_limit.toFixed(2)}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => deleteBudget(b.id)}
+                      className="p-2 rounded-lg text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/5 transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => deleteBudget(b.id)}
-                    className="p-2 rounded-lg text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/5 transition-all"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
 
-                {/* Progress bar */}
-                <div className="h-2 rounded-full bg-[rgb(var(--bg-secondary))] overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${pct}%` }}
-                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: i * 0.1 }}
-                    className="h-full rounded-full"
-                    style={{ background: barColor }}
-                  />
-                </div>
+                  {/* Progress bar */}
+                  <div className="h-2 rounded-full bg-[rgb(var(--bg-secondary))] overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: i * 0.1 }}
+                      className="h-full rounded-full"
+                      style={{ background: barColor }}
+                    />
+                  </div>
 
-                <div className="flex items-center justify-between mt-2">
-                  <span
-                    className="text-xs font-semibold"
-                    style={{ color: barColor }}
-                  >
-                    {pct.toFixed(0)}% used
-                  </span>
-                  {isOver && (
-                    <span className="text-xs font-semibold text-[rgb(var(--expense))]">
-                      ⚠️ Over budget!
+                  <div className="flex items-center justify-between mt-2">
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: barColor }}
+                    >
+                      {pct.toFixed(0)}% used
                     </span>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                    {isOver && (
+                      <span className="text-xs font-semibold text-[rgb(var(--expense))]">
+                        ⚠️ Over budget!
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+          {hasMore && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="w-full py-3 mt-4 rounded-xl bg-[rgb(var(--bg-secondary))] hover:bg-[rgba(var(--border),0.4)] text-[rgb(var(--text-secondary))] font-medium transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? "Loading..." : "Load More"}
+            </motion.button>
+          )}
+        </>
       )}
     </div>
   );

@@ -27,6 +27,10 @@ export const BUILTIN_INCOME_CATEGORIES: Record<string, { emoji: string; label: s
   other: { emoji: "💵", label: "Other" },
 };
 
+export const expenseCategories = Object.keys(BUILTIN_EXPENSE_CATEGORIES);
+export const incomeCategories = Object.keys(BUILTIN_INCOME_CATEGORIES);
+export const paymentMethods = ["UPI", "Card", "Cash"];
+
 export function getCategoryEmoji(key: string, customIcons?: Record<string, string>): string {
   if (customIcons?.[key]) return customIcons[key];
   return (
