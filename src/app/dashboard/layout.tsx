@@ -13,12 +13,13 @@ import {
   X,
   ChevronRight,
   Tags,
+  User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CategoryProvider } from "@/lib/categories";
-import { DataProvider } from "@/lib/data";
+import { DataProvider, useData } from "@/lib/data";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -34,6 +35,162 @@ const BOTTOM_NAV = [
   { href: "/dashboard/budgets", label: "Budgets", icon: Target },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
+
+function Sidebar({ onSignOut }: { onSignOut: () => void }) {
+  const pathname = usePathname();
+  const { profile, household } = useData();
+  const [authMeta, setAuthMeta] = useState<{ first_name?: string; last_name?: string; ledger_name?: string } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata) {
+        setAuthMeta(user.user_metadata);
+      }
+    });
+  }, []);
+
+  function isActive(href: string) {
+    return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+  }
+
+  const displayName = profile?.first_name 
+    ? `${profile.first_name} ${profile.last_name || ""}`.trim()
+    : (authMeta?.first_name ? `${authMeta.first_name} ${authMeta.last_name || ""}`.trim() : "User");
+
+  const ledgerDisplay = household?.name || authMeta?.ledger_name || "Personal Ledger";
+
+  return (
+    <aside className="hidden lg:flex flex-col w-[260px] border-r border-[rgba(var(--border),0.5)] bg-[rgb(var(--bg-card))] fixed h-full z-40">
+      {/* Logo & Household */}
+      <div className="px-6 pt-7 pb-8">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl gradient-accent flex items-center justify-center shadow-md shadow-[rgb(var(--accent))]/20">
+            <span className="text-white font-bold text-lg">P</span>
+          </div>
+          <div>
+            <h1 className="font-bold text-[1.05rem] tracking-tight">PockeTrek</h1>
+            <p className="text-[11px] text-[rgb(var(--text-secondary))] font-medium">
+              Family Finance
+            </p>
+          </div>
+        </div>
+
+        {/* Household Info */}
+        <div className="p-3.5 rounded-2xl bg-[rgb(var(--bg-secondary))] border border-[rgba(var(--border),0.4)]">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[rgb(var(--text-secondary))] opacity-60 mb-1">
+            Current Ledger
+          </p>
+          <p className="font-bold text-[0.9375rem] truncate text-[rgb(var(--text-primary))]">
+            {ledgerDisplay}
+          </p>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 space-y-0.5">
+        <p className="section-label px-3 mb-2">Menu</p>
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`group flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] text-[0.875rem] font-medium transition-all duration-200
+                ${
+                  active
+                    ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
+                    : "text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-secondary))]"
+                }`}
+            >
+              <Icon size={19} strokeWidth={active ? 2.3 : 1.8} />
+              <span className="flex-1">{item.label}</span>
+              {active && (
+                <ChevronRight size={14} className="opacity-50" />
+              )}
+            </Link>
+          );
+        })}
+
+        <div className="divider !my-4 mx-3" />
+
+        <Link
+          href="/dashboard/settings"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] text-[0.875rem] font-medium transition-all duration-200
+            ${
+              isActive("/dashboard/settings")
+                ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
+                : "text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-secondary))]"
+            }`}
+        >
+          <Settings size={19} strokeWidth={isActive("/dashboard/settings") ? 2.3 : 1.8} />
+          <span className="flex-1">Settings</span>
+        </Link>
+      </nav>
+
+      {/* User Profile */}
+      <div className="px-3 pb-6 space-y-2">
+        <div className="px-3 py-3 flex items-center gap-3 border-t border-[rgba(var(--border),0.4)]">
+          <div className="w-9 h-9 rounded-full gradient-accent flex items-center justify-center text-white text-sm font-bold shadow-sm">
+            {(profile?.first_name || "U").charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold truncate leading-tight">
+              {displayName}
+            </p>
+            <p className="text-[11px] text-[rgb(var(--text-secondary))] truncate">
+              {profile?.household_id ? "Family Plan" : "Syncing..."}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onSignOut}
+          className="flex items-center gap-3 px-3 py-2.5 w-full rounded-[var(--radius-md)] text-[0.875rem] font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/5 transition-all duration-200"
+        >
+          <LogOut size={19} strokeWidth={1.8} />
+          Sign Out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function MobileHeader({ onToggle, isOpen }: { onToggle: () => void; isOpen: boolean }) {
+  const { household } = useData();
+  const [authMeta, setAuthMeta] = useState<{ ledger_name?: string } | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.user_metadata) setAuthMeta(user.user_metadata);
+    });
+  }, []);
+
+  const ledgerDisplay = household?.name || authMeta?.ledger_name || "PockeTrek";
+
+  return (
+    <div className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-subtle">
+      <div className="flex items-center justify-between px-4 h-14">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center">
+            <span className="text-white font-bold text-sm">P</span>
+          </div>
+          <span className="font-bold text-[0.9375rem] truncate max-w-[150px]">
+            {ledgerDisplay}
+          </span>
+        </div>
+        <button
+          onClick={onToggle}
+          className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-[rgb(var(--bg-secondary))] transition-colors"
+        >
+          {isOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -71,173 +228,92 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex bg-[rgb(var(--bg-primary))]">
-      {/* ── Desktop Sidebar ── */}
-      <aside className="hidden lg:flex flex-col w-[260px] border-r border-[rgba(var(--border),0.5)] bg-[rgb(var(--bg-card))] fixed h-full z-40">
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-6 pt-7 pb-8">
-          <div className="w-10 h-10 rounded-xl gradient-accent flex items-center justify-center shadow-md shadow-[rgb(var(--accent))]/20">
-            <span className="text-white font-bold text-lg">P</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-[1.05rem] tracking-tight">PockeTrek</h1>
-            <p className="text-[11px] text-[rgb(var(--text-secondary))] font-medium">
-              Family Finance
-            </p>
-          </div>
-        </div>
+    <CategoryProvider householdId={householdId}>
+      <DataProvider>
+        <div className="min-h-screen flex bg-[rgb(var(--bg-primary))]">
+          {/* ── Desktop Sidebar ── */}
+          <Sidebar onSignOut={handleSignOut} />
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 space-y-0.5">
-          <p className="section-label px-3 mb-2">Menu</p>
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`group flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] text-[0.875rem] font-medium transition-all duration-200
-                  ${
-                    active
-                      ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
-                      : "text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-secondary))]"
-                  }`}
+          {/* ── Mobile Header ── */}
+          <MobileHeader onToggle={() => setMobileOpen(!mobileOpen)} isOpen={mobileOpen} />
+
+          {/* Mobile slide-down menu */}
+          <AnimatePresence>
+            {mobileOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="lg:hidden fixed top-14 left-0 right-0 z-40 overflow-hidden border-t border-[rgba(var(--border),0.4)] bg-[rgb(var(--bg-card))]"
               >
-                <Icon size={19} strokeWidth={active ? 2.3 : 1.8} />
-                <span className="flex-1">{item.label}</span>
-                {active && (
-                  <ChevronRight size={14} className="opacity-50" />
-                )}
-              </Link>
-            );
-          })}
+                <div className="px-3 py-3 space-y-0.5">
+                  {[...NAV_ITEMS, { href: "/dashboard/settings", label: "Settings", icon: Settings }].map((item) => {
+                    const active = isActive(item.href);
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-all
+                          ${
+                            active
+                              ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
+                              : "text-[rgb(var(--text-secondary))]"
+                          }`}
+                      >
+                        <Icon size={19} />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                  <div className="divider !my-2 mx-4" />
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] w-full"
+                  >
+                    <LogOut size={19} />
+                    Sign Out
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <div className="divider !my-4 mx-3" />
-
-          <Link
-            href="/dashboard/settings"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius-md)] text-[0.875rem] font-medium transition-all duration-200
-              ${
-                isActive("/dashboard/settings")
-                  ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
-                  : "text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--bg-secondary))]"
-              }`}
-          >
-            <Settings size={19} strokeWidth={isActive("/dashboard/settings") ? 2.3 : 1.8} />
-            <span className="flex-1">Settings</span>
-          </Link>
-        </nav>
-
-        {/* Sign Out */}
-        <div className="px-3 pb-6">
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-[var(--radius-md)] text-[0.875rem] font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/5 transition-all duration-200"
-          >
-            <LogOut size={19} strokeWidth={1.8} />
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      {/* ── Mobile Header ── */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 glass-subtle">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="font-bold text-[0.9375rem]">PockeTrek</span>
-          </div>
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-[rgb(var(--bg-secondary))] transition-colors"
-          >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-
-        {/* Mobile slide-down menu */}
-        <AnimatePresence>
-          {mobileOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden border-t border-[rgba(var(--border),0.4)] bg-[rgb(var(--bg-card))]"
-            >
-              <div className="px-3 py-3 space-y-0.5">
-                {[...NAV_ITEMS, { href: "/dashboard/settings", label: "Settings", icon: Settings }].map((item) => {
-                  const active = isActive(item.href);
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-all
-                        ${
-                          active
-                            ? "bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]"
-                            : "text-[rgb(var(--text-secondary))]"
-                        }`}
-                    >
-                      <Icon size={19} />
+          {/* ── Mobile Bottom Tab Bar ── */}
+          <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-subtle safe-area-pb">
+            <div className="flex justify-around py-1.5 px-2">
+              {BOTTOM_NAV.map((item) => {
+                const active = isActive(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[52px]
+                      ${
+                        active
+                          ? "text-[rgb(var(--accent))]"
+                          : "text-[rgb(var(--text-secondary))]"
+                      }`}
+                  >
+                    <Icon size={20} strokeWidth={active ? 2.3 : 1.6} />
+                    <span className={`text-[10px] ${active ? "font-bold" : "font-medium"}`}>
                       {item.label}
-                    </Link>
-                  );
-                })}
-                <div className="divider !my-2 mx-4" />
-                <button
-                  onClick={handleSignOut}
-                  className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] w-full"
-                >
-                  <LogOut size={19} />
-                  Sign Out
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
 
-      {/* ── Mobile Bottom Tab Bar ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 glass-subtle safe-area-pb">
-        <div className="flex justify-around py-1.5 px-2">
-          {BOTTOM_NAV.map((item) => {
-            const active = isActive(item.href);
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[52px]
-                  ${
-                    active
-                      ? "text-[rgb(var(--accent))]"
-                      : "text-[rgb(var(--text-secondary))]"
-                  }`}
-              >
-                <Icon size={20} strokeWidth={active ? 2.3 : 1.6} />
-                <span className={`text-[10px] ${active ? "font-bold" : "font-medium"}`}>
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
-
-      {/* ── Main Content ── */}
-      <main className="flex-1 lg:ml-[260px] pt-14 pb-20 lg:pt-0 lg:pb-0 overflow-auto">
-        <CategoryProvider householdId={householdId}>
-          <DataProvider>
+          {/* ── Main Content ── */}
+          <main className="flex-1 lg:ml-[260px] pt-14 pb-20 lg:pt-0 lg:pb-0 overflow-auto">
             {children}
-          </DataProvider>
-        </CategoryProvider>
-      </main>
-    </div>
+          </main>
+        </div>
+      </DataProvider>
+    </CategoryProvider>
   );
 }

@@ -39,6 +39,13 @@ export default function LoginPage() {
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          ledger_name: ledgerName,
+        }
+      }
     });
     if (signUpError) {
       setError(signUpError.message);
@@ -85,16 +92,23 @@ export default function LoginPage() {
         householdId = generatedHouseholdId;
       }
 
-      await supabase.from("profiles").insert({
+      // Use upsert in case a trigger already created a skeleton profile
+      const { error: pError } = await supabase.from("profiles").upsert({
         id: userId,
         first_name: firstName,
         last_name: lastName,
         household_id: householdId,
       });
 
+      if (pError) {
+        setError("Failed to create user profile. " + pError.message);
+        setLoading(false);
+        return;
+      }
+
       router.push("/dashboard");
-    } catch {
-      setError("Something went wrong during setup.");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong during setup.");
       setLoading(false);
     }
   }
