@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Shield, Eye, EyeOff, ArrowRight, Loader2, Wallet } from "lucide-react";
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -57,7 +57,6 @@ export default function LoginPage() {
       let householdId: string;
 
       if (inviteCode.trim()) {
-        // Join existing household
         householdId = inviteCode.trim();
         const { data: existingHousehold } = await supabase
           .from("households")
@@ -71,7 +70,6 @@ export default function LoginPage() {
           return;
         }
       } else {
-        // Create new household
         const hName = ledgerName.trim() || `${firstName}'s Ledger`;
         const { data: newHousehold, error: hError } = await supabase
           .from("households")
@@ -86,7 +84,6 @@ export default function LoginPage() {
         householdId = newHousehold.id;
       }
 
-      // Create profile
       await supabase.from("profiles").insert({
         id: userId,
         first_name: firstName,
@@ -109,39 +106,40 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden px-4">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[rgb(var(--accent))] via-[rgb(var(--accent-secondary))] to-[#1a1a3e]" />
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[rgb(var(--accent))] blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[rgb(var(--accent-secondary))] blur-[100px] animate-pulse" style={{ animationDelay: "1s" }} />
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[rgb(var(--accent))] via-[rgb(var(--accent-secondary))] to-[#14142e]" />
+      <div className="absolute inset-0">
+        <div className="absolute top-[-25%] left-[-15%] w-[55%] h-[55%] rounded-full bg-[rgb(var(--accent))]/40 blur-[100px]" />
+        <div className="absolute bottom-[-25%] right-[-15%] w-[45%] h-[45%] rounded-full bg-[rgb(var(--accent-secondary))]/30 blur-[80px]" />
+        <div className="absolute top-[40%] right-[15%] w-[20%] h-[20%] rounded-full bg-white/[0.03] blur-[60px]" />
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-md"
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        className="relative w-full max-w-[420px]"
       >
-        {/* Floating shield icon */}
+        {/* Logo */}
         <motion.div
-          animate={{ y: [-6, 6, -6] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="flex justify-center mb-6"
+          animate={{ y: [-5, 5, -5] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          className="flex justify-center mb-7"
         >
-          <div className="w-16 h-16 rounded-2xl gradient-accent flex items-center justify-center shadow-lg shadow-[rgb(var(--accent))]/30">
-            <Shield className="w-8 h-8 text-white" />
+          <div className="w-16 h-16 rounded-2xl gradient-accent flex items-center justify-center shadow-xl shadow-black/20 ring-1 ring-white/10">
+            <Wallet className="w-8 h-8 text-white" />
           </div>
         </motion.div>
 
         {/* Card */}
-        <div className="glass rounded-[var(--radius-hero)] p-8 shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-white">
+        <div className="glass rounded-[var(--radius-hero)] p-7 shadow-2xl shadow-black/20">
+          <div className="text-center mb-7">
+            <h1 className="text-[1.5rem] font-bold text-white tracking-tight">
               {isSignUp ? "Create Account" : "Welcome Back"}
             </h1>
-            <p className="text-white/60 text-sm mt-2">
+            <p className="text-white/50 text-sm mt-1.5">
               {isSignUp
-                ? "Set up your family ledger"
+                ? "Set up your family finance ledger"
                 : "Sign in to manage your finances"}
             </p>
           </div>
@@ -155,7 +153,7 @@ export default function LoginPage() {
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="space-y-4 overflow-hidden"
+                  className="space-y-3 overflow-hidden"
                 >
                   <div className="grid grid-cols-2 gap-3">
                     <input
@@ -163,7 +161,7 @@ export default function LoginPage() {
                       placeholder="First name"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40"
+                      className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 !rounded-[var(--radius-md)]"
                       required
                     />
                     <input
@@ -171,7 +169,7 @@ export default function LoginPage() {
                       placeholder="Last name"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40"
+                      className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 !rounded-[var(--radius-md)]"
                       required
                     />
                   </div>
@@ -180,24 +178,26 @@ export default function LoginPage() {
                     placeholder="Ledger name (e.g. The Smiths)"
                     value={ledgerName}
                     onChange={(e) => setLedgerName(e.target.value)}
-                    className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40"
+                    className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 !rounded-[var(--radius-md)]"
                   />
-                  <div className="relative">
+
+                  <div className="relative py-2">
                     <div className="absolute inset-0 flex items-center">
-                      <span className="w-full border-t border-white/20" />
+                      <span className="w-full border-t border-white/15" />
                     </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="px-2 text-white/50 bg-transparent">
-                        or join with invite code
+                    <div className="relative flex justify-center">
+                      <span className="px-3 text-[11px] text-white/40 uppercase tracking-wider font-semibold bg-transparent">
+                        or join existing
                       </span>
                     </div>
                   </div>
+
                   <input
                     type="text"
                     placeholder="Invite code (optional)"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
-                    className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40 font-mono text-sm"
+                    className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 font-mono text-sm !rounded-[var(--radius-md)]"
                   />
                 </motion.div>
               )}
@@ -208,7 +208,7 @@ export default function LoginPage() {
               placeholder="Email address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40"
+              className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 !rounded-[var(--radius-md)]"
               required
             />
 
@@ -218,40 +218,43 @@ export default function LoginPage() {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="!bg-white/10 !border-white/20 !text-white placeholder:!text-white/40 pr-12"
+                className="!bg-white/8 !border-white/15 !text-white placeholder:!text-white/35 !pr-12 !rounded-[var(--radius-md)]"
                 required
                 minLength={6}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
             </div>
 
-            {error && (
-              <motion.p
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-sm text-red-300 bg-red-500/20 rounded-xl px-4 py-2.5 text-center"
-              >
-                {error}
-              </motion.p>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="text-sm text-red-300 bg-red-500/15 rounded-[var(--radius-md)] px-4 py-2.5 text-center font-medium"
+                >
+                  {error}
+                </motion.p>
+              )}
+            </AnimatePresence>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl font-semibold text-white gradient-accent shadow-lg shadow-[rgb(var(--accent))]/25 hover:shadow-[rgb(var(--accent))]/40 transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-[var(--radius-md)] font-semibold text-white bg-white/15 hover:bg-white/20 border border-white/20 shadow-lg shadow-black/10 transition-all duration-200 disabled:opacity-40 flex items-center justify-center gap-2 mt-2"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
                   {isSignUp ? "Create Account" : "Sign In"}
-                  <ArrowRight size={18} />
+                  <ArrowRight size={16} />
                 </>
               )}
             </button>
@@ -264,7 +267,7 @@ export default function LoginPage() {
                 setIsSignUp(!isSignUp);
                 setError(null);
               }}
-              className="text-sm text-white/60 hover:text-white/90 transition-colors"
+              className="text-sm text-white/45 hover:text-white/75 transition-colors"
             >
               {isSignUp
                 ? "Already have an account? Sign in"
@@ -272,6 +275,12 @@ export default function LoginPage() {
             </button>
           </div>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-[11px] text-white/25 mt-6 flex items-center justify-center gap-1.5">
+          <Shield size={11} />
+          Secured with end-to-end encryption
+        </p>
       </motion.div>
     </div>
   );

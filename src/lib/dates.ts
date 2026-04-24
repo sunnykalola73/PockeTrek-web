@@ -28,6 +28,18 @@ export function formatMonthYearQuery(date: Date): string {
   return `${y}-${m}`;
 }
 
+/** Returns { start, end } ISO date strings for a month range.
+ *  `start` = first day of the month, `end` = first day of NEXT month.
+ *  Use with .gte(start).lt(end) to avoid invalid dates like Apr 31. */
+export function getMonthRange(date: Date): { start: string; end: string } {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  const start = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const nextMonth = new Date(y, m + 1, 1);
+  const end = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+  return { start, end };
+}
+
 export function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

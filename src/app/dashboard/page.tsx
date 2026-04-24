@@ -4,9 +4,18 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Transaction, Profile, Household } from "@/lib/types";
 import { relativeDate } from "@/lib/dates";
-import { getCategoryEmoji, getCategoryLabel } from "@/lib/categories";
+import { getCategoryEmoji, getCategoryLabel, useCategories } from "@/lib/categories";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import {
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Pencil,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import AddTransactionModal from "@/components/AddTransactionModal";
 
 function getGreeting(): { emoji: string; text: string } {
@@ -14,18 +23,25 @@ function getGreeting(): { emoji: string; text: string } {
   if (h < 6) return { emoji: "✨", text: "Good night" };
   if (h < 12) return { emoji: "🌅", text: "Good morning" };
   if (h < 17) return { emoji: "☀️", text: "Good afternoon" };
-  if (h < 21) return { emoji: "🌙", text: "Good evening" };
+  if (h < 21) return { emoji: "🌇", text: "Good evening" };
   return { emoji: "✨", text: "Good night" };
 }
 
 export default function DashboardPage() {
   const supabase = createClient();
+  const { categories: cats } = useCategories();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [household, setHousehold] = useState<Household | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showAddTx, setShowAddTx] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+
+  // Search & Filters
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const totalIncome = transactions
     .filter((t) => t.transaction_type === "income")
@@ -44,7 +60,6 @@ export default function DashboardPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Profile
     const { data: prof } = await supabase
       .from("profiles")
       .select("*")
@@ -57,7 +72,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // Household
     const { data: hh } = await supabase
       .from("households")
       .select("*")
@@ -65,7 +79,6 @@ export default function DashboardPage() {
       .single();
     setHousehold(hh);
 
-    // Profiles map
     const { data: members } = await supabase
       .from("profiles")
       .select("id, first_name")
@@ -76,205 +89,307 @@ export default function DashboardPage() {
     });
     setProfilesMap(map);
 
-    // Recent transactions (last 30)
-    const { data: txs } = await supabase
+    let query = supabase
       .from("transactions")
       .select("*")
       .eq("household_id", prof.household_id)
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(200);
+
+    if (typeFilter) query = query.eq("transaction_type", typeFilter);
+    if (search)
+      query = query.or(
+        `note.ilike.%${search}%,category.ilike.%${search}%`
+      );
+
+    const { data: txs } = await query;
     setTransactions(txs ?? []);
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, typeFilter, search]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const timer = setTimeout(loadData, search ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [loadData, search]);
+
+  // Group transactions by date
+  const grouped: Record<string, Transaction[]> = {};
+  for (const tx of transactions) {
+    const key = relativeDate(tx.transaction_date);
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(tx);
+  }
+
+  const filterLabels = [
+    { value: null, label: "All" },
+    { value: "expense", label: "Expenses" },
+    { value: "income", label: "Income" },
+  ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <motion.h1
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-2xl font-bold"
-          >
+    <div className="max-w-3xl mx-auto px-4 lg:px-8 py-8 space-y-8">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+        >
+          <h1 className="text-[1.75rem] font-bold tracking-tight">
             {greeting.emoji} {greeting.text}
             {profile?.first_name ? `, ${profile.first_name}` : ""}
-          </motion.h1>
+          </h1>
           <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-            {household?.name ?? "Loading..."}
+            {household?.name ?? "Your financial overview"}
           </p>
-        </div>
+        </motion.div>
 
         <motion.button
-          whileHover={{ scale: 1.05 }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.15 }}
+          whileHover={{ scale: 1.06 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowAddTx(true)}
-          className="w-12 h-12 rounded-2xl gradient-accent flex items-center justify-center shadow-lg shadow-[rgb(var(--accent))]/25 text-white"
+          className="btn-primary !px-5 !py-3 !rounded-[var(--radius-lg)]"
         >
-          <Plus size={24} />
+          <Plus size={18} strokeWidth={2.5} />
+          <span className="hidden sm:inline">Add</span>
         </motion.button>
       </div>
 
-      {/* Balance Card */}
+      {/* ── Balance Card ── */}
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="relative overflow-hidden rounded-[var(--radius-hero)] p-6 gradient-accent text-white shadow-xl"
+        className="relative overflow-hidden rounded-[var(--radius-hero)] p-7 gradient-accent text-white"
+        style={{ boxShadow: "0 12px 40px rgba(var(--accent), 0.2)" }}
       >
-        {/* Glass overlay */}
-        <div className="absolute inset-0 bg-white/5 backdrop-blur-[1px]" />
-        <div className="absolute top-[-50%] right-[-30%] w-[60%] h-[120%] bg-white/5 rounded-full blur-3xl" />
+        {/* Decorative shapes */}
+        <div className="absolute top-[-40%] right-[-20%] w-[50%] h-[140%] bg-white/[0.04] rounded-full blur-2xl" />
+        <div className="absolute bottom-[-30%] left-[-15%] w-[40%] h-[100%] bg-white/[0.03] rounded-full blur-3xl" />
 
         <div className="relative z-10">
-          <p className="text-white/70 text-xs font-semibold uppercase tracking-wider mb-1">
+          <p className="text-white/60 text-[11px] font-bold uppercase tracking-[0.1em] mb-1.5">
             Current Balance
           </p>
-          <motion.p
-            key={balance}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-4xl font-bold tracking-tight"
-          >
-            ${balance.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-          </motion.p>
+          <p className="text-[2.5rem] font-extrabold tracking-tight leading-none">
+            $
+            {balance.toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </p>
 
-          <div className="flex gap-6 mt-5">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                <TrendingUp size={16} />
+          <div className="flex gap-8 mt-6">
+            {[
+              { label: "Income", value: totalIncome, Icon: TrendingUp },
+              { label: "Expenses", value: totalExpenses, Icon: TrendingDown },
+            ].map(({ label, value, Icon }) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                  <Icon size={16} strokeWidth={2} />
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/50 uppercase tracking-wider font-semibold">
+                    {label}
+                  </p>
+                  <p className="text-sm font-bold">
+                    ${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] text-white/60 uppercase tracking-wider">
-                  Income
-                </p>
-                <p className="text-sm font-semibold">
-                  ${totalIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
-                <TrendingDown size={16} />
-              </div>
-              <div>
-                <p className="text-[10px] text-white/60 uppercase tracking-wider">
-                  Expenses
-                </p>
-                <p className="text-sm font-semibold">
-                  ${totalExpenses.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </motion.div>
 
-      {/* Recent Transactions */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold">Recent Transactions</h2>
-          {transactions.length > 0 && (
-            <a
-              href="/dashboard/activity"
-              className="text-sm text-[rgb(var(--accent))] font-medium hover:underline"
-            >
-              View all →
-            </a>
-          )}
+      {/* ── Search + Filters ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold tracking-tight">Transactions</h2>
+          <span className="badge bg-[rgb(var(--bg-secondary))] text-[rgb(var(--text-secondary))]">
+            {transactions.length}
+          </span>
         </div>
 
-        {loading ? (
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="skeleton h-16 rounded-[var(--radius-md)]" />
-            ))}
+        <div className="flex gap-2.5">
+          <div className="flex-1 relative">
+            <Search
+              size={17}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[rgb(var(--text-secondary))]"
+            />
+            <input
+              type="text"
+              placeholder="Search transactions…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="!pl-10"
+            />
           </div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center py-16">
-            <Wallet className="w-12 h-12 mx-auto text-[rgb(var(--text-secondary))] mb-4 opacity-40" />
-            <p className="font-semibold text-[rgb(var(--text-secondary))]">
-              No transactions yet
-            </p>
-            <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
-              Tap + to add your first expense or income
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <AnimatePresence>
-              {transactions.slice(0, 15).map((tx, i) => (
-                <motion.div
-                  key={tx.id}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    delay: i * 0.04,
-                    duration: 0.4,
-                    ease: [0.22, 1, 0.36, 1],
-                  }}
-                  className="theme-card p-4 flex items-center gap-4"
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`btn-ghost !px-3.5 ${
+              showFilters
+                ? "!bg-[rgb(var(--accent))]/8 !text-[rgb(var(--accent))] !border-[rgb(var(--accent))]/20"
+                : ""
+            }`}
+          >
+            <SlidersHorizontal size={17} />
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex gap-2 flex-wrap overflow-hidden"
+            >
+              {filterLabels.map(({ value, label }) => (
+                <button
+                  key={label}
+                  onClick={() => setTypeFilter(value)}
+                  className={`badge transition-all ${
+                    typeFilter === value
+                      ? "bg-[rgb(var(--accent))] text-white"
+                      : "bg-[rgb(var(--bg-secondary))] text-[rgb(var(--text-secondary))] hover:bg-[rgba(var(--border),0.5)]"
+                  } !py-2 !px-4 cursor-pointer`}
                 >
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl ${
-                      tx.transaction_type === "income"
-                        ? "bg-[rgb(var(--income))]/10"
-                        : "bg-[rgb(var(--expense))]/10"
-                    }`}
-                  >
-                    {getCategoryEmoji(tx.category)}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">
-                      {getCategoryLabel(tx.category)}
-                    </p>
-                    <p className="text-xs text-[rgb(var(--text-secondary))]">
-                      {relativeDate(tx.transaction_date)} · {tx.payment_method}
-                      {tx.user_id && profilesMap[tx.user_id]
-                        ? ` · ${profilesMap[tx.user_id]}`
-                        : ""}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <p
-                      className={`font-semibold text-sm ${
-                        tx.transaction_type === "income"
-                          ? "text-[rgb(var(--income))]"
-                          : "text-[rgb(var(--expense))]"
-                      }`}
-                    >
-                      {tx.transaction_type === "income" ? "+" : "-"}$
-                      {tx.amount.toFixed(2)}
-                    </p>
-                    {tx.note && (
-                      <p className="text-[11px] text-[rgb(var(--text-secondary))] truncate max-w-[120px]">
-                        {tx.note}
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
+                  {label}
+                </button>
               ))}
-            </AnimatePresence>
-          </div>
-        )}
+              {typeFilter && (
+                <button
+                  onClick={() => setTypeFilter(null)}
+                  className="badge bg-[rgb(var(--expense))]/8 text-[rgb(var(--expense))] !py-2 !px-3 cursor-pointer"
+                >
+                  <X size={12} /> Clear
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* Add Transaction Modal */}
+      {/* ── Transaction List ── */}
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="skeleton h-[68px]" />
+          ))}
+        </div>
+      ) : transactions.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-20"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-[rgb(var(--bg-secondary))] flex items-center justify-center mx-auto mb-4">
+            <Wallet className="w-7 h-7 text-[rgb(var(--text-secondary))] opacity-50" />
+          </div>
+          <p className="font-semibold text-[rgb(var(--text-secondary))]">
+            {search || typeFilter ? "No transactions found" : "No transactions yet"}
+          </p>
+          <p className="text-sm text-[rgb(var(--text-secondary))] mt-1.5 mb-5 max-w-[240px] mx-auto">
+            {search || typeFilter
+              ? "Adjust your search or filters"
+              : "Add your first expense or income to get started"}
+          </p>
+          {!search && !typeFilter && (
+            <button onClick={() => setShowAddTx(true)} className="btn-primary">
+              <Plus size={16} />
+              Add Transaction
+            </button>
+          )}
+        </motion.div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([dateKey, txs], sectionIdx) => (
+            <div key={dateKey}>
+              <p className="section-label mb-2.5 px-1">{dateKey}</p>
+              <div className="space-y-2">
+                {txs.map((tx, i) => (
+                  <motion.div
+                    key={tx.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      delay: Math.min((sectionIdx * 3 + i) * 0.025, 0.4),
+                      duration: 0.3,
+                    }}
+                    className="theme-card px-4 py-3.5 flex items-center gap-4"
+                  >
+                    <div
+                      className={`w-11 h-11 rounded-[var(--radius-md)] flex items-center justify-center text-xl shrink-0
+                        ${
+                          tx.transaction_type === "income"
+                            ? "bg-[rgb(var(--income))]/8"
+                            : "bg-[rgb(var(--expense))]/8"
+                        }`}
+                    >
+                      {getCategoryEmoji(tx.category, cats)}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm leading-tight">
+                        {getCategoryLabel(tx.category, cats)}
+                      </p>
+                      <p className="text-[12px] text-[rgb(var(--text-secondary))] mt-0.5 truncate">
+                        {tx.payment_method}
+                        {tx.user_id && profilesMap[tx.user_id]
+                          ? ` · ${profilesMap[tx.user_id]}`
+                          : ""}
+                        {tx.note ? ` · ${tx.note}` : ""}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right">
+                        <p
+                          className={`font-bold text-sm ${
+                            tx.transaction_type === "income"
+                              ? "text-[rgb(var(--income))]"
+                              : "text-[rgb(var(--expense))]"
+                          }`}
+                        >
+                          {tx.transaction_type === "income" ? "+" : "−"}$
+                          {tx.amount.toFixed(2)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setEditingTx(tx)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--accent))] hover:bg-[rgb(var(--accent))]/8 transition-all"
+                        title="Edit transaction"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Transaction Modal ── */}
       <AnimatePresence>
-        {showAddTx && profile?.household_id && (
+        {(showAddTx || editingTx) && profile?.household_id && (
           <AddTransactionModal
             householdId={profile.household_id}
             userId={profile.id}
-            onClose={() => setShowAddTx(false)}
+            transaction={editingTx ?? undefined}
+            onClose={() => {
+              setShowAddTx(false);
+              setEditingTx(null);
+            }}
             onSaved={() => {
               setShowAddTx(false);
+              setEditingTx(null);
               loadData();
             }}
           />
