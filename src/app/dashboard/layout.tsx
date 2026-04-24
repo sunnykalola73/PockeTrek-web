@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Tags,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect } from "react";
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/dashboard/reports", label: "Reports", icon: BarChart3 },
   { href: "/dashboard/budgets", label: "Budgets", icon: Target },
   { href: "/dashboard/recurring", label: "Recurring", icon: Repeat },
+  { href: "/dashboard/categories", label: "Categories", icon: Tags },
 ];
 
 const BOTTOM_NAV = [

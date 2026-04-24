@@ -11,7 +11,7 @@ import { Plus, Trash2, Loader2, Target, X } from "lucide-react";
 
 export default function BudgetsPage() {
   const supabase = createClient();
-  const { categories: cats, expenseCategories: expCats } = useCategories();
+  const { categories: cats, expenseCategories: expCats, getCategoryById } = useCategories();
   const {
     household,
     budgets,
@@ -21,7 +21,7 @@ export default function BudgetsPage() {
   } = useData();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [newCategory, setNewCategory] = useState("food");
+  const [newCategoryId, setNewCategoryId] = useState("");
   const [newLimit, setNewLimit] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -52,11 +52,13 @@ export default function BudgetsPage() {
 
   async function addBudget() {
     const limit = parseFloat(newLimit);
-    if (!household || isNaN(limit) || limit <= 0) return;
+    if (!household || isNaN(limit) || limit <= 0 || !newCategoryId) return;
     setSaving(true);
+    const selectedCat = expCats.find((c) => c.id === newCategoryId);
     await supabase.from("budgets").insert({
       household_id: household.id,
-      category: newCategory,
+      category: selectedCat?.name ?? "",  // legacy
+      category_id: newCategoryId,
       monthly_limit: limit,
     });
     setSaving(false);
@@ -73,7 +75,7 @@ export default function BudgetsPage() {
   }
 
   const totalBudget = budgets.reduce((s, b) => s + b.monthly_limit, 0);
-  const totalSpent = budgets.reduce((s, b) => s + (spending[b.category] ?? 0), 0);
+  const totalSpent = budgets.reduce((s, b) => s + (spending[b.category_id ?? b.category] ?? 0), 0);
 
   return (
     <div className="max-w-3xl mx-auto px-4 lg:px-8 py-8 space-y-6">
@@ -108,11 +110,12 @@ export default function BudgetsPage() {
                 <div>
                   <label className="section-label mb-2 block">Category</label>
                   <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
+                    value={newCategoryId}
+                    onChange={(e) => setNewCategoryId(e.target.value)}
                   >
+                    <option value="">Select category…</option>
                     {expCats.map((c) => (
-                      <option key={c.id} value={c.name}>
+                      <option key={c.id} value={c.id}>
                         {c.icon_emoji} {c.name.charAt(0).toUpperCase() + c.name.slice(1)}
                       </option>
                     ))}
@@ -165,7 +168,7 @@ export default function BudgetsPage() {
       ) : (
         <div className="space-y-3">
           {budgets.map((b, i) => {
-            const spent = spending[b.category] ?? 0;
+            const spent = spending[b.category_id ?? b.category] ?? 0;
             const pct = Math.min((spent / b.monthly_limit) * 100, 100);
             const isOver = spent > b.monthly_limit;
             const colorVar = isOver ? "--expense" : pct > 80 ? "--caution" : "--safe";
@@ -182,10 +185,17 @@ export default function BudgetsPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
                     <div className={`w-11 h-11 rounded-[var(--radius-md)] flex items-center justify-center text-xl bg-[rgb(var(${colorVar}))]/8`}>
-                      {getCategoryEmoji(b.category, cats)}
+                      {(() => {
+                        const cat = getCategoryById(b.category_id);
+                        return cat ? cat.icon_emoji : getCategoryEmoji(b.category, cats);
+                      })()}
                     </div>
                     <div>
-                      <p className="font-semibold">{getCategoryLabel(b.category, cats)}</p>
+                      <p className="font-semibold">{(() => {
+                        const cat = getCategoryById(b.category_id);
+                        const name = cat ? cat.name : b.category;
+                        return name.charAt(0).toUpperCase() + name.slice(1);
+                      })()}</p>
                       <p className="text-[12px] text-[rgb(var(--text-secondary))] mt-0.5">
                         {isOver ? (
                           <span className="text-[rgb(var(--expense))] font-semibold">

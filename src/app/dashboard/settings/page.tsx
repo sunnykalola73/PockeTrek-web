@@ -6,7 +6,7 @@ import type { Profile, Household } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, Copy, Check, LogOut, Download, Users, Mail, Shield, Tags } from "lucide-react";
-import CategoryManagerModal from "@/components/CategoryManagerModal";
+import Link from "next/link";
 import { useData } from "@/lib/data";
 
 export default function SettingsPage() {
@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [joinMsg, setJoinMsg] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
-  const [showCatModal, setShowCatModal] = useState(false);
+
 
   const memberCount = Object.keys(profilesMap).length;
   const loading = !profile;
@@ -216,8 +216,8 @@ export default function SettingsPage() {
       >
         <p className="section-label mb-1 px-1">Actions</p>
 
-        <button
-          onClick={() => setShowCatModal(true)}
+        <Link
+          href="/dashboard/categories"
           className="theme-card p-4 w-full flex items-center gap-4 hover:border-[rgb(var(--accent))]/30 transition-all text-left"
         >
           <div className="w-10 h-10 rounded-[var(--radius-md)] bg-[rgb(var(--accent))]/10 flex items-center justify-center text-[rgb(var(--accent))] shadow-sm">
@@ -229,7 +229,7 @@ export default function SettingsPage() {
               Add, edit, or remove transaction categories
             </p>
           </div>
-        </button>
+        </Link>
 
         <button
           onClick={exportCSV}
@@ -270,11 +270,6 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showCatModal && (
-          <CategoryManagerModal onClose={() => setShowCatModal(false)} />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -30,7 +30,7 @@ function getGreeting(): { emoji: string; text: string } {
 
 export default function DashboardPage() {
   const supabase = createClient();
-  const { categories: cats } = useCategories();
+  const { categories: cats, getCategoryById } = useCategories();
   const {
     profile,
     household,
@@ -56,7 +56,8 @@ export default function DashboardPage() {
     if (typeFilter && tx.transaction_type !== typeFilter) return false;
     if (search) {
       const q = search.toLowerCase();
-      if (!tx.note?.toLowerCase().includes(q) && !tx.category.toLowerCase().includes(q)) {
+      const resolvedName = getCategoryById(tx.category_id)?.name ?? tx.category;
+      if (!tx.note?.toLowerCase().includes(q) && !resolvedName.toLowerCase().includes(q)) {
         return false;
       }
     }
@@ -314,12 +315,19 @@ export default function DashboardPage() {
                             : "bg-[rgb(var(--expense))]/8"
                         }`}
                     >
-                      {getCategoryEmoji(tx.category, cats)}
+                      {(() => {
+                        const cat = getCategoryById(tx.category_id);
+                        return cat ? cat.icon_emoji : getCategoryEmoji(tx.category, cats);
+                      })()}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm leading-tight">
-                        {getCategoryLabel(tx.category, cats)}
+                        {(() => {
+                          const cat = getCategoryById(tx.category_id);
+                          const name = cat ? cat.name : tx.category;
+                          return name.charAt(0).toUpperCase() + name.slice(1);
+                        })()}
                       </p>
                       <p className="text-[12px] text-[rgb(var(--text-secondary))] mt-0.5 truncate">
                         {tx.payment_method}

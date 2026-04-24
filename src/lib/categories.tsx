@@ -94,6 +94,7 @@ interface CategoryContextValue {
   expenseCategories: LedgerCategory[];
   incomeCategories: LedgerCategory[];
   loading: boolean;
+  getCategoryById: (id: string | null | undefined) => LedgerCategory | undefined;
   addCategory: (
     name: string,
     emoji: string,
@@ -210,9 +211,14 @@ export function CategoryProvider({
         throw error;
       }
 
-      const updated = [...categories, data];
-      setCategories(updated);
-      writeCache(updated);
+      if (data) {
+        const updated = [...categories, data];
+        setCategories(updated);
+        writeCache(updated);
+      } else {
+        // Fallback if RLS blocks SELECT after INSERT
+        fetchCategories();
+      }
     },
     [householdId, categories, supabase]
   );
@@ -271,6 +277,12 @@ export function CategoryProvider({
     (c) => c.transaction_type === "income"
   );
 
+  const getCategoryById = useCallback(
+    (id: string | null | undefined) =>
+      id ? categories.find((c) => c.id === id) : undefined,
+    [categories]
+  );
+
   return (
     <CategoryContext.Provider
       value={{
@@ -278,6 +290,7 @@ export function CategoryProvider({
         expenseCategories,
         incomeCategories,
         loading,
+        getCategoryById,
         addCategory,
         updateCategory,
         deleteCategory,
@@ -298,6 +311,7 @@ export function useCategories() {
       expenseCategories: [] as LedgerCategory[],
       incomeCategories: [] as LedgerCategory[],
       loading: false,
+      getCategoryById: () => undefined,
       addCategory: async () => {},
       updateCategory: async () => {},
       deleteCategory: async () => {},

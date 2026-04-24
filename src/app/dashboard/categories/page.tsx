@@ -4,13 +4,9 @@ import { useState } from "react";
 import { useCategories } from "@/lib/categories";
 import type { LedgerCategory } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Pencil, Trash2, Loader2, Save } from "lucide-react";
+import { X, Plus, Pencil, Trash2, Loader2, Save, Tags } from "lucide-react";
 
-export default function CategoryManagerModal({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+export default function CategoriesPage() {
   const {
     expenseCategories,
     incomeCategories,
@@ -97,32 +93,21 @@ export default function CategoryManagerModal({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-md flex items-end lg:items-center justify-center"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: "100%", opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: "100%", opacity: 0 }}
-        transition={{ type: "spring", damping: 30, stiffness: 350 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[480px] bg-[rgb(var(--bg-card))] rounded-t-[var(--radius-hero)] lg:rounded-[var(--radius-hero)] max-h-[92vh] overflow-hidden flex flex-col shadow-2xl"
-      >
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[rgba(var(--border),0.4)]">
-          <h2 className="text-lg font-bold tracking-tight">Categories</h2>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full bg-[rgb(var(--bg-secondary))] flex items-center justify-center hover:bg-[rgba(var(--border),0.7)] transition-colors"
-          >
-            <X size={16} />
-          </button>
+    <div className="max-w-3xl mx-auto px-4 lg:px-8 py-8 space-y-6">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-10 h-10 rounded-xl gradient-accent flex items-center justify-center text-white shadow-sm">
+          <Tags size={20} />
         </div>
+        <div>
+          <h1 className="text-[1.75rem] font-bold tracking-tight leading-none">Categories</h1>
+          <p className="text-sm text-[rgb(var(--text-secondary))] mt-1">
+            Manage your transaction categories
+          </p>
+        </div>
+      </div>
 
-        <div className="flex px-6 pt-4 gap-2">
+      <div className="theme-card overflow-hidden">
+        <div className="flex p-4 gap-2 border-b border-[rgba(var(--border),0.4)]">
           <button
             onClick={() => setActiveTab("expense")}
             className={`flex-1 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-all ${
@@ -145,7 +130,7 @@ export default function CategoryManagerModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-3">
+        <div className="p-4 space-y-3">
           {error && (
             <p className="text-sm text-[rgb(var(--expense))] bg-[rgb(var(--expense))]/10 p-3 rounded-lg mb-4 font-medium">
               {error}
@@ -153,21 +138,25 @@ export default function CategoryManagerModal({
           )}
 
           {categories.map((c) => (
-            <div key={c.id} className="theme-card p-3 flex items-center gap-3">
+            <motion.div 
+              layout
+              key={c.id} 
+              className="p-3 flex items-center gap-3 bg-[rgb(var(--bg-primary))] rounded-[var(--radius-md)] border border-[rgba(var(--border),0.4)]"
+            >
               {editingId === c.id ? (
                 <>
                   <input
                     type="text"
                     value={editEmoji}
                     onChange={(e) => setEditEmoji(e.target.value)}
-                    className="w-12 h-10 text-center !p-0 !text-xl"
                     maxLength={2}
+                    className="w-12 h-10 text-center !p-0 !text-xl bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
                   />
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 h-10 !px-3"
+                    className="flex-1 h-10 !px-3 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
                     autoFocus
                   />
                   <button
@@ -207,24 +196,29 @@ export default function CategoryManagerModal({
                   </button>
                 </>
               )}
-            </div>
+            </motion.div>
           ))}
 
           {isAdding ? (
-            <div className="theme-card p-3 flex items-center gap-3 border-[rgb(var(--accent))]/30 border-2 border-dashed">
+            <motion.div 
+              layout
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 flex items-center gap-3 border-[rgb(var(--accent))]/30 border-2 border-dashed rounded-[var(--radius-md)] bg-[rgb(var(--bg-primary))]"
+            >
               <input
                 type="text"
                 value={newEmoji}
                 onChange={(e) => setNewEmoji(e.target.value)}
-                className="w-12 h-10 text-center !p-0 !text-xl"
                 maxLength={2}
+                className="w-12 h-10 text-center !p-0 !text-xl bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
               />
               <input
                 type="text"
                 placeholder="Name"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="flex-1 h-10 !px-3"
+                className="flex-1 h-10 !px-3 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
                 autoFocus
               />
               <button
@@ -241,18 +235,19 @@ export default function CategoryManagerModal({
               >
                 <X size={16} />
               </button>
-            </div>
+            </motion.div>
           ) : (
-            <button
+            <motion.button
+              layout
               onClick={startAdd}
-              className="w-full py-4 rounded-[var(--radius-md)] border-2 border-dashed border-[rgba(var(--border),0.6)] text-[rgb(var(--text-secondary))] font-semibold flex items-center justify-center gap-2 hover:bg-[rgb(var(--bg-secondary))] transition-colors"
+              className="w-full py-4 mt-2 rounded-[var(--radius-md)] border-2 border-dashed border-[rgba(var(--border),0.6)] text-[rgb(var(--text-secondary))] font-semibold flex items-center justify-center gap-2 hover:bg-[rgb(var(--bg-secondary))] transition-colors"
             >
               <Plus size={16} />
               Add Category
-            </button>
+            </motion.button>
           )}
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

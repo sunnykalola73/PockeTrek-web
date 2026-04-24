@@ -5,7 +5,8 @@ export interface Transaction {
   household_id: string;
   user_id: string | null;
   amount: number;
-  category: string;
+  category: string;         // legacy – kept for iOS compat
+  category_id: string | null; // FK to ledger_categories
   payment_method: string;
   transaction_date: string; // yyyy-MM-dd
   transaction_type: "expense" | "income";
@@ -32,7 +33,8 @@ export interface Household {
 export interface Budget {
   id: string;
   household_id: string;
-  category: string;
+  category: string;         // legacy
+  category_id: string | null; // FK to ledger_categories
   monthly_limit: number;
   created_at: string | null;
 }
@@ -42,7 +44,8 @@ export interface RecurringTransaction {
   household_id: string;
   user_id: string;
   amount: number;
-  category: string;
+  category: string;         // legacy
+  category_id: string | null; // FK to ledger_categories
   payment_method: string;
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   start_date: string;

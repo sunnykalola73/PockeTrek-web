@@ -9,7 +9,7 @@ import { motion } from "framer-motion";
 import { Repeat, CalendarClock } from "lucide-react";
 
 export default function RecurringPage() {
-  const { categories: cats } = useCategories();
+  const { categories: cats, getCategoryById } = useCategories();
   const { recurring: items, profilesMap, loading: dataLoading } = useData();
 
   const frequencyMap: Record<string, string> = {
@@ -69,11 +69,18 @@ export default function RecurringPage() {
                   className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center text-2xl shrink-0"
                   style={{ background: `rgba(var(${tint}), 0.08)` }}
                 >
-                  {getCategoryEmoji(rec.category, cats)}
+                  {(() => {
+                    const cat = getCategoryById(rec.category_id);
+                    return cat ? cat.icon_emoji : getCategoryEmoji(rec.category, cats);
+                  })()}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-[0.9375rem]">{getCategoryLabel(rec.category, cats)}</p>
+                  <p className="font-semibold text-[0.9375rem]">{(() => {
+                    const cat = getCategoryById(rec.category_id);
+                    const name = cat ? cat.name : rec.category;
+                    return name.charAt(0).toUpperCase() + name.slice(1);
+                  })()}</p>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className="badge bg-[rgb(var(--accent))]/8 text-[rgb(var(--accent))]">
                       <Repeat size={10} />

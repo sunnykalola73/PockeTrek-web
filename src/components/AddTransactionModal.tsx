@@ -39,7 +39,18 @@ export default function AddTransactionModal({
   const [amount, setAmount] = useState(
     transaction ? String(transaction.amount) : ""
   );
-  const [category, setCategory] = useState(transaction?.category ?? "food");
+
+  const { expenseCategories, incomeCategories } = useCategories();
+  const categories = txType === "expense" ? expenseCategories : incomeCategories;
+
+  // Default to the first available category id for the current type
+  function defaultCategoryId(type: "expense" | "income") {
+    const cats = type === "expense" ? expenseCategories : incomeCategories;
+    if (transaction?.category_id) return transaction.category_id;
+    return cats[0]?.id ?? "";
+  }
+
+  const [categoryId, setCategoryId] = useState(defaultCategoryId(txType));
   const [method, setMethod] = useState(transaction?.payment_method ?? "UPI");
   const [date, setDate] = useState(transaction?.transaction_date ?? todayISO());
   const [note, setNote] = useState(transaction?.note ?? "");
@@ -48,11 +59,6 @@ export default function AddTransactionModal({
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const { expenseCategories, incomeCategories } = useCategories();
-
-  const categories =
-    txType === "expense" ? expenseCategories : incomeCategories;
 
   const tintVar = txType === "expense" ? "--expense" : "--income";
   const isValid = parseFloat(amount) > 0;
@@ -78,11 +84,13 @@ export default function AddTransactionModal({
     setSaving(true);
     setError(null);
 
+    const selectedCat = categories.find((c) => c.id === categoryId);
     const payload = {
       household_id: householdId,
       user_id: userId,
       amount: parsed,
-      category,
+      category: selectedCat?.name ?? "",   // legacy column
+      category_id: categoryId || null,
       payment_method: method,
       transaction_date: date,
       transaction_type: txType,
@@ -191,7 +199,9 @@ export default function AddTransactionModal({
                   onClick={() => {
                     setTxType(t);
                     if (!isEdit) {
-                      setCategory(t === "expense" ? "food" : "salary");
+                      // Reset to first id for the new type
+                      const cats = t === "expense" ? expenseCategories : incomeCategories;
+                      setCategoryId(cats[0]?.id ?? "");
                     }
                   }}
                   className={`flex-1 flex items-center justify-center gap-2.5 py-3.5 rounded-[var(--radius-md)] text-sm font-semibold transition-all duration-250
@@ -232,11 +242,11 @@ export default function AddTransactionModal({
             <label className="section-label mb-3 block">Category</label>
             <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
               {categories.map((cat) => {
-                const selected = category === cat.name;
+                const selected = categoryId === cat.id;
                 return (
                   <button
                     key={cat.id}
-                    onClick={() => setCategory(cat.name)}
+                    onClick={() => setCategoryId(cat.id)}
                     className={`flex flex-col items-center gap-1.5 py-3 rounded-[var(--radius-md)] transition-all duration-200
                       ${
                         selected
