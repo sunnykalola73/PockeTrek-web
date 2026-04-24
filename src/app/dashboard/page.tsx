@@ -38,6 +38,9 @@ export default function DashboardPage() {
     transactions: globalTransactions,
     loading: dataLoading,
     refresh,
+    globalStats,
+    loadMoreTransactions,
+    hasMoreTransactions,
   } = useData();
 
   const [showAddTx, setShowAddTx] = useState(false);
@@ -60,13 +63,17 @@ export default function DashboardPage() {
     return true;
   });
 
-  const totalIncome = transactions
-    .filter((t) => t.transaction_type === "income")
-    .reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = transactions
-    .filter((t) => t.transaction_type === "expense")
-    .reduce((s, t) => s + t.amount, 0);
-  const balance = totalIncome - totalExpenses;
+  const totalIncome = search || typeFilter 
+    ? transactions.filter((t) => t.transaction_type === "income").reduce((s, t) => s + t.amount, 0)
+    : globalStats.total_income;
+    
+  const totalExpenses = search || typeFilter
+    ? transactions.filter((t) => t.transaction_type === "expense").reduce((s, t) => s + t.amount, 0)
+    : globalStats.total_expenses;
+    
+  const balance = search || typeFilter
+    ? totalIncome - totalExpenses
+    : globalStats.balance;
 
   const greeting = getGreeting();
 
@@ -349,6 +356,16 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
+          {hasMoreTransactions && !search && !typeFilter && (
+            <div className="pt-4 flex justify-center">
+              <button 
+                onClick={loadMoreTransactions} 
+                className="btn-ghost !text-[rgb(var(--text-secondary))] hover:!text-[rgb(var(--foreground))]"
+              >
+                Load older transactions
+              </button>
+            </div>
+          )}
         </div>
       )}
 

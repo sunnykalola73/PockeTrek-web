@@ -26,19 +26,29 @@ export default function BudgetsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Derive spending from current month's transactions
-  const { start, end } = getMonthRange(new Date());
-  const spending: Record<string, number> = {};
+  const [spending, setSpending] = useState<Record<string, number>>({});
   
-  for (const tx of globalTransactions) {
-    if (
-      tx.transaction_type === "expense" &&
-      tx.transaction_date >= start &&
-      tx.transaction_date < end
-    ) {
-      spending[tx.category] = (spending[tx.category] ?? 0) + tx.amount;
+  const loadSpending = useCallback(async () => {
+    if (!household?.id) return;
+    const now = new Date();
+    const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const end = `${lastDay.getFullYear()}-${String(lastDay.getMonth() + 1).padStart(2, "0")}-${String(lastDay.getDate()).padStart(2, "0")}`;
+    
+    const { data } = await supabase.rpc("get_category_spending", {
+      h_id: household.id,
+      start_date: start,
+      end_date: end,
+    });
+    
+    if (data) {
+      setSpending(data as Record<string, number>);
     }
-  }
+  }, [household?.id, supabase]);
+
+  useEffect(() => {
+    loadSpending();
+  }, [loadSpending]);
 
   async function addBudget() {
     const limit = parseFloat(newLimit);

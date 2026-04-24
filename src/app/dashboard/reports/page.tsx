@@ -25,21 +25,43 @@ export default function ReportsPage() {
     profile,
     household,
     profilesMap,
-    transactions: globalTransactions,
     loading: dataLoading,
     refresh,
   } = useData();
+  const supabase = createClient();
 
   const [month, setMonth] = useState(new Date());
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
+  const [monthTransactions, setMonthTransactions] = useState<Transaction[]>([]);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
   // Client-side derivation
   const { start, end } = getMonthRange(month);
   
-  const transactions = globalTransactions.filter(
-    (tx) => tx.transaction_date >= start && tx.transaction_date < end
-  );
+  const loadMonthTransactions = useCallback(async () => {
+    if (!household?.id) return;
+    setLoadingMonth(true);
+    
+    // We get start and end dates from getMonthRange which uses first day of current and next month.
+    const { data } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("household_id", household.id)
+      .gte("transaction_date", start)
+      .lt("transaction_date", end)
+      .order("transaction_date", { ascending: false });
+      
+    if (data) setMonthTransactions(data);
+    setLoadingMonth(false);
+  }, [household?.id, start, end, supabase]);
+
+  useEffect(() => {
+    loadMonthTransactions();
+  }, [loadMonthTransactions]);
+  
+  const transactions = monthTransactions;
 
   const catMap: Record<string, CategoryReport> = {};
   const userMap: Record<string, number> = {};
@@ -326,6 +348,7 @@ export default function ReportsPage() {
             onSaved={() => {
               setEditingTx(null);
               refresh();
+              loadMonthTransactions();
             }}
           />
         )}
