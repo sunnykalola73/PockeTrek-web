@@ -4,7 +4,109 @@ import { useState } from "react";
 import { useCategories } from "@/lib/categories";
 import type { LedgerCategory } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Plus, Pencil, Trash2, Loader2, Save, Tags } from "lucide-react";
+import { X, Plus, Pencil, Trash2, Loader2, Save, Tags, Smile } from "lucide-react";
+
+// ── Reusable form card shown when adding or editing ──────────
+function CategoryForm({
+  emoji,
+  name,
+  onEmojiChange,
+  onNameChange,
+  onSave,
+  onCancel,
+  loading,
+  label,
+}: {
+  emoji: string;
+  name: string;
+  onEmojiChange: (v: string) => void;
+  onNameChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  loading: boolean;
+  label: string;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.18 }}
+      className="p-4 space-y-4 border-2 border-dashed border-[rgb(var(--accent))]/30 rounded-[var(--radius-md)] bg-[rgb(var(--bg-primary))]"
+    >
+      <p className="text-xs font-bold uppercase tracking-widest text-[rgb(var(--accent))] opacity-70">
+        {label}
+      </p>
+
+      <div className="grid grid-cols-2 gap-3">
+        {/* Icon input */}
+        <div className="space-y-1.5">
+          <label className="section-label flex items-center gap-1.5">
+            <Smile size={11} />
+            Icon
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={emoji}
+              onChange={(e) => onEmojiChange(e.target.value)}
+              maxLength={2}
+              placeholder="😀"
+              className="w-full h-12 text-center !text-2xl !p-0 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-[var(--radius-md)] outline-none border border-[rgba(var(--border),0.5)] focus:border-[rgb(var(--accent))]/50 focus:ring-2 focus:ring-[rgb(var(--accent))]/20 transition-all"
+            />
+            <p className="text-[10px] text-[rgb(var(--text-secondary))] text-center mt-1">
+              Press ⌃⌘Space for emoji
+            </p>
+          </div>
+        </div>
+
+        {/* Name input */}
+        <div className="space-y-1.5">
+          <label className="section-label flex items-center gap-1.5">
+            <Tags size={11} />
+            Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => onNameChange(e.target.value)}
+            placeholder="e.g. Groceries"
+            autoFocus
+            className="w-full h-12 !px-3 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-[var(--radius-md)] outline-none border border-[rgba(var(--border),0.5)] focus:border-[rgb(var(--accent))]/50 focus:ring-2 focus:ring-[rgb(var(--accent))]/20 transition-all"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !loading) onSave();
+              if (e.key === "Escape") onCancel();
+            }}
+          />
+          <p className="text-[10px] text-[rgb(var(--text-secondary))]">
+            Press Enter to save
+          </p>
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={onSave}
+          disabled={loading || !name.trim() || !emoji.trim()}
+          className="flex-1 h-10 flex items-center justify-center gap-2 rounded-[var(--radius-md)] text-sm font-semibold bg-[rgb(var(--safe))]/10 text-[rgb(var(--safe))] hover:bg-[rgb(var(--safe))]/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        >
+          {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+          Save
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          className="h-10 px-4 flex items-center justify-center gap-2 rounded-[var(--radius-md)] text-sm font-semibold bg-[rgb(var(--bg-secondary))] text-[rgb(var(--text-secondary))] hover:bg-[rgba(var(--border),0.6)] transition-all"
+        >
+          <X size={14} />
+          Cancel
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function CategoriesPage() {
   const {
@@ -19,11 +121,11 @@ export default function CategoriesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmoji, setEditEmoji] = useState("");
-  
+
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState("");
-  
+  const [newEmoji, setNewEmoji] = useState("📁");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,9 +209,10 @@ export default function CategoriesPage() {
       </div>
 
       <div className="theme-card overflow-hidden">
+        {/* Tab switcher */}
         <div className="flex p-4 gap-2 border-b border-[rgba(var(--border),0.4)]">
           <button
-            onClick={() => setActiveTab("expense")}
+            onClick={() => { setActiveTab("expense"); cancelEdit(); }}
             className={`flex-1 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-all ${
               activeTab === "expense"
                 ? "bg-[rgb(var(--expense))]/10 text-[rgb(var(--expense))]"
@@ -119,7 +222,7 @@ export default function CategoriesPage() {
             Expenses
           </button>
           <button
-            onClick={() => setActiveTab("income")}
+            onClick={() => { setActiveTab("income"); cancelEdit(); }}
             className={`flex-1 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-all ${
               activeTab === "income"
                 ? "bg-[rgb(var(--income))]/10 text-[rgb(var(--income))]"
@@ -130,117 +233,81 @@ export default function CategoriesPage() {
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-2.5">
           {error && (
-            <p className="text-sm text-[rgb(var(--expense))] bg-[rgb(var(--expense))]/10 p-3 rounded-lg mb-4 font-medium">
+            <p className="text-sm text-[rgb(var(--expense))] bg-[rgb(var(--expense))]/10 p-3 rounded-lg font-medium">
               {error}
             </p>
           )}
 
-          {categories.map((c) => (
-            <motion.div 
-              layout
-              key={c.id} 
-              className="p-3 flex items-center gap-3 bg-[rgb(var(--bg-primary))] rounded-[var(--radius-md)] border border-[rgba(var(--border),0.4)]"
-            >
-              {editingId === c.id ? (
-                <>
-                  <input
-                    type="text"
-                    value={editEmoji}
-                    onChange={(e) => setEditEmoji(e.target.value)}
-                    maxLength={2}
-                    className="w-12 h-10 text-center !p-0 !text-xl bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
-                  />
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="flex-1 h-10 !px-3 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleSaveEdit}
-                    disabled={loading}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg bg-[rgb(var(--safe))]/10 text-[rgb(var(--safe))] hover:bg-[rgb(var(--safe))]/20"
+          <AnimatePresence initial={false}>
+            {categories.map((c) => (
+              <motion.div layout key={c.id} className="space-y-2">
+                {/* Normal row */}
+                {editingId !== c.id && (
+                  <motion.div
+                    layout
+                    className="p-3 flex items-center gap-3 bg-[rgb(var(--bg-primary))] rounded-[var(--radius-md)] border border-[rgba(var(--border),0.4)]"
                   >
-                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  </button>
-                  <button
-                    onClick={cancelEdit}
-                    disabled={loading}
-                    className="w-10 h-10 flex items-center justify-center rounded-lg bg-[rgb(var(--bg-secondary))] hover:bg-[rgba(var(--border),0.5)]"
-                  >
-                    <X size={16} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-[rgb(var(--bg-secondary))] shrink-0">
-                    {c.icon_emoji}
-                  </div>
-                  <p className="flex-1 font-semibold text-[0.9375rem] capitalize">
-                    {c.name}
-                  </p>
-                  <button
-                    onClick={() => startEdit(c)}
-                    className="w-8 h-8 flex items-center justify-center rounded-md text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--accent))] hover:bg-[rgb(var(--accent))]/10"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    className="w-8 h-8 flex items-center justify-center rounded-md text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/10"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </>
-              )}
-            </motion.div>
-          ))}
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center text-xl bg-[rgb(var(--bg-secondary))] shrink-0">
+                      {c.icon_emoji}
+                    </div>
+                    <p className="flex-1 font-semibold text-[0.9375rem] capitalize">
+                      {c.name}
+                    </p>
+                    <button
+                      onClick={() => startEdit(c)}
+                      className="w-8 h-8 flex items-center justify-center rounded-md text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--accent))] hover:bg-[rgb(var(--accent))]/10"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-md text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--expense))] hover:bg-[rgb(var(--expense))]/10"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </motion.div>
+                )}
 
-          {isAdding ? (
-            <motion.div 
-              layout
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-3 flex items-center gap-3 border-[rgb(var(--accent))]/30 border-2 border-dashed rounded-[var(--radius-md)] bg-[rgb(var(--bg-primary))]"
-            >
-              <input
-                type="text"
-                value={newEmoji}
-                onChange={(e) => setNewEmoji(e.target.value)}
-                maxLength={2}
-                className="w-12 h-10 text-center !p-0 !text-xl bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
+                {/* Expanded edit form — replaces the row */}
+                {editingId === c.id && (
+                  <CategoryForm
+                    emoji={editEmoji}
+                    name={editName}
+                    onEmojiChange={setEditEmoji}
+                    onNameChange={setEditName}
+                    onSave={handleSaveEdit}
+                    onCancel={cancelEdit}
+                    loading={loading}
+                    label={`Editing "${c.name}"`}
+                  />
+                )}
+              </motion.div>
+            ))}
+
+            {/* Add form */}
+            {isAdding && (
+              <CategoryForm
+                key="add-form"
+                emoji={newEmoji}
+                name={newName}
+                onEmojiChange={setNewEmoji}
+                onNameChange={setNewName}
+                onSave={handleSaveAdd}
+                onCancel={cancelEdit}
+                loading={loading}
+                label="New Category"
               />
-              <input
-                type="text"
-                placeholder="Name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="flex-1 h-10 !px-3 bg-[rgb(var(--bg-secondary))] text-[rgb(var(--foreground))] rounded-md outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]/50 transition-all"
-                autoFocus
-              />
-              <button
-                onClick={handleSaveAdd}
-                disabled={loading}
-                className="w-10 h-10 flex items-center justify-center rounded-lg bg-[rgb(var(--safe))]/10 text-[rgb(var(--safe))] hover:bg-[rgb(var(--safe))]/20"
-              >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              </button>
-              <button
-                onClick={cancelEdit}
-                disabled={loading}
-                className="w-10 h-10 flex items-center justify-center rounded-lg bg-[rgb(var(--bg-secondary))] hover:bg-[rgba(var(--border),0.5)]"
-              >
-                <X size={16} />
-              </button>
-            </motion.div>
-          ) : (
+            )}
+          </AnimatePresence>
+
+          {/* Add button */}
+          {!isAdding && (
             <motion.button
               layout
               onClick={startAdd}
-              className="w-full py-4 mt-2 rounded-[var(--radius-md)] border-2 border-dashed border-[rgba(var(--border),0.6)] text-[rgb(var(--text-secondary))] font-semibold flex items-center justify-center gap-2 hover:bg-[rgb(var(--bg-secondary))] transition-colors"
+              className="w-full py-4 mt-1 rounded-[var(--radius-md)] border-2 border-dashed border-[rgba(var(--border),0.6)] text-[rgb(var(--text-secondary))] font-semibold flex items-center justify-center gap-2 hover:bg-[rgb(var(--bg-secondary))] hover:border-[rgb(var(--accent))]/30 hover:text-[rgb(var(--accent))] transition-all"
             >
               <Plus size={16} />
               Add Category
