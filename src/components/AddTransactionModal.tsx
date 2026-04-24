@@ -8,6 +8,7 @@ import {
   PAYMENT_METHODS,
 } from "@/lib/categories";
 import { todayISO } from "@/lib/dates";
+import { useData } from "@/lib/data";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Check, Loader2, ArrowDownCircle, ArrowUpCircle, Trash2 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export default function AddTransactionModal({
   onSaved,
 }: Props) {
   const supabase = createClient();
+  const { addTransaction, updateTransaction, deleteTransaction } = useData();
   const amountRef = useRef<HTMLInputElement>(null);
   const isEdit = !!transaction;
 
@@ -92,9 +94,23 @@ export default function AddTransactionModal({
       result = await supabase
         .from("transactions")
         .update(payload)
-        .eq("id", transaction.id);
+        .eq("id", transaction.id)
+        .select()
+        .maybeSingle();
+      
+      if (!result.error && result.data) {
+        updateTransaction(result.data);
+      }
     } else {
-      result = await supabase.from("transactions").insert(payload);
+      result = await supabase
+        .from("transactions")
+        .insert(payload)
+        .select()
+        .maybeSingle();
+      
+      if (!result.error && result.data) {
+        addTransaction(result.data);
+      }
     }
 
     if (result.error) {
@@ -120,6 +136,7 @@ export default function AddTransactionModal({
       setError(deleteError.message);
       setDeleting(false);
     } else {
+      deleteTransaction(transaction.id);
       setSuccess(true);
       setTimeout(onSaved, 400);
     }

@@ -62,7 +62,7 @@ export default function LoginPage() {
           .from("households")
           .select("id")
           .eq("id", householdId)
-          .single();
+          .maybeSingle();
 
         if (!existingHousehold) {
           setError("Invalid invite code. No household found.");
@@ -71,17 +71,18 @@ export default function LoginPage() {
         }
       } else {
         const hName = ledgerName.trim() || `${firstName}'s Ledger`;
-        const { data: newHousehold, error: hError } = await supabase
+        const generatedHouseholdId = crypto.randomUUID();
+        
+        const { error: hError } = await supabase
           .from("households")
-          .insert({ name: hName, created_by: userId })
-          .select()
-          .single();
-        if (hError || !newHousehold) {
+          .insert({ id: generatedHouseholdId, name: hName });
+          
+        if (hError) {
           setError("Failed to create household.");
           setLoading(false);
           return;
         }
-        householdId = newHousehold.id;
+        householdId = generatedHouseholdId;
       }
 
       await supabase.from("profiles").insert({

@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CategoryProvider } from "@/lib/categories";
+import { DataProvider } from "@/lib/data";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
@@ -50,7 +51,7 @@ export default function DashboardLayout({
         .from("profiles")
         .select("household_id")
         .eq("id", user.id)
-        .single()
+        .maybeSingle()
         .then(({ data }) => {
           if (data?.household_id) setHouseholdId(data.household_id);
         });
@@ -230,7 +231,9 @@ export default function DashboardLayout({
       {/* ── Main Content ── */}
       <main className="flex-1 lg:ml-[260px] pt-14 pb-20 lg:pt-0 lg:pb-0 overflow-auto">
         <CategoryProvider householdId={householdId}>
-          {children}
+          <DataProvider>
+            {children}
+          </DataProvider>
         </CategoryProvider>
       </main>
     </div>

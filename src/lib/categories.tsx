@@ -203,7 +203,7 @@ export function CategoryProvider({
           sort_order: maxOrder + 1,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("Failed to add category:", error);

@@ -7,56 +7,27 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, Copy, Check, LogOut, Download, Users, Mail, Shield, Tags } from "lucide-react";
 import CategoryManagerModal from "@/components/CategoryManagerModal";
+import { useData } from "@/lib/data";
 
 export default function SettingsPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [household, setHousehold] = useState<Household | null>(null);
-  const [memberCount, setMemberCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const { profile, household, profilesMap, transactions, refresh } = useData();
   const [email, setEmail] = useState("");
+  const [copied, setCopied] = useState(false);
   const [inviteCode, setInviteCode] = useState("");
   const [joinMsg, setJoinMsg] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [showCatModal, setShowCatModal] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    setEmail(user.email ?? "");
-
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-    setProfile(prof);
-
-    if (prof?.household_id) {
-      const { data: hh } = await supabase
-        .from("households")
-        .select("*")
-        .eq("id", prof.household_id)
-        .single();
-      setHousehold(hh);
-
-      const { count } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("household_id", prof.household_id);
-      setMemberCount(count ?? 1);
-    }
-    setLoading(false);
-  }, [supabase]);
+  const memberCount = Object.keys(profilesMap).length;
+  const loading = !profile;
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.email) setEmail(user.email);
+    });
+  }, [supabase]);
 
   async function copyInvite() {
     if (!household) return;
@@ -89,7 +60,7 @@ export default function SettingsPage() {
 
     setJoinMsg(`Joined "${existing.name}" successfully!`);
     setJoining(false);
-    loadData();
+    refresh();
   }
 
   async function signOut() {
@@ -99,16 +70,10 @@ export default function SettingsPage() {
 
   async function exportCSV() {
     if (!profile?.household_id) return;
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("household_id", profile.household_id)
-      .order("transaction_date", { ascending: false });
-
-    if (!txs || txs.length === 0) return;
+    if (!transactions || transactions.length === 0) return;
 
     const headers = ["Date", "Type", "Category", "Amount", "Payment Method", "Note"];
-    const rows = txs.map((tx) => [
+    const rows = transactions.map((tx) => [
       tx.transaction_date,
       tx.transaction_type,
       tx.category,

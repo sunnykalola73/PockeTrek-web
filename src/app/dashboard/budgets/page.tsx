@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Budget, Transaction } from "@/lib/types";
 import { getCategoryEmoji, getCategoryLabel, useCategories } from "@/lib/categories";
+import { useData } from "@/lib/data";
 import { getMonthRange } from "@/lib/dates";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Trash2, Loader2, Target, X } from "lucide-react";
@@ -11,78 +12,54 @@ import { Plus, Trash2, Loader2, Target, X } from "lucide-react";
 export default function BudgetsPage() {
   const supabase = createClient();
   const { categories: cats, expenseCategories: expCats } = useCategories();
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [spending, setSpending] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-  const [householdId, setHouseholdId] = useState<string | null>(null);
+  const {
+    household,
+    budgets,
+    transactions: globalTransactions,
+    loading: dataLoading,
+    refresh,
+  } = useData();
+
   const [showAdd, setShowAdd] = useState(false);
   const [newCategory, setNewCategory] = useState("food");
   const [newLimit, setNewLimit] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("household_id")
-      .eq("id", user.id)
-      .single();
-    if (!prof?.household_id) return;
-    setHouseholdId(prof.household_id);
-
-    const { data: bds } = await supabase
-      .from("budgets")
-      .select("*")
-      .eq("household_id", prof.household_id)
-      .order("category");
-    setBudgets(bds ?? []);
-
-    const { start, end } = getMonthRange(new Date());
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("category, amount")
-      .eq("household_id", prof.household_id)
-      .eq("transaction_type", "expense")
-      .gte("transaction_date", start)
-      .lt("transaction_date", end);
-
-    const spendMap: Record<string, number> = {};
-    txs?.forEach((tx: Pick<Transaction, "category" | "amount">) => {
-      spendMap[tx.category] = (spendMap[tx.category] ?? 0) + tx.amount;
-    });
-    setSpending(spendMap);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Derive spending from current month's transactions
+  const { start, end } = getMonthRange(new Date());
+  const spending: Record<string, number> = {};
+  
+  for (const tx of globalTransactions) {
+    if (
+      tx.transaction_type === "expense" &&
+      tx.transaction_date >= start &&
+      tx.transaction_date < end
+    ) {
+      spending[tx.category] = (spending[tx.category] ?? 0) + tx.amount;
+    }
+  }
 
   async function addBudget() {
     const limit = parseFloat(newLimit);
-    if (!householdId || isNaN(limit) || limit <= 0) return;
+    if (!household || isNaN(limit) || limit <= 0) return;
     setSaving(true);
     await supabase.from("budgets").insert({
-      household_id: householdId,
+      household_id: household.id,
       category: newCategory,
       monthly_limit: limit,
     });
     setSaving(false);
     setShowAdd(false);
     setNewLimit("");
-    loadData();
+    refresh();
   }
 
   async function deleteBudget(id: string) {
     setDeletingId(id);
     await supabase.from("budgets").delete().eq("id", id);
     setDeletingId(null);
-    loadData();
+    refresh();
   }
 
   const totalBudget = budgets.reduce((s, b) => s + b.monthly_limit, 0);
@@ -156,7 +133,7 @@ export default function BudgetsPage() {
       </AnimatePresence>
 
       {/* ── Budget Cards ── */}
-      {loading ? (
+      {dataLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="skeleton h-[100px]" />

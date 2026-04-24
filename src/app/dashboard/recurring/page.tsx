@@ -4,49 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { RecurringTransaction } from "@/lib/types";
 import { getCategoryEmoji, getCategoryLabel, useCategories } from "@/lib/categories";
+import { useData } from "@/lib/data";
 import { motion } from "framer-motion";
 import { Repeat, CalendarClock } from "lucide-react";
 
 export default function RecurringPage() {
-  const supabase = createClient();
   const { categories: cats } = useCategories();
-  const [items, setItems] = useState<RecurringTransaction[]>([]);
-  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("household_id")
-      .eq("id", user.id)
-      .single();
-    if (!prof?.household_id) return;
-
-    const { data: members } = await supabase
-      .from("profiles")
-      .select("id, first_name")
-      .eq("household_id", prof.household_id);
-    const map: Record<string, string> = {};
-    members?.forEach((m) => (map[m.id] = m.first_name ?? "User"));
-    setProfilesMap(map);
-
-    const { data: recs } = await supabase
-      .from("recurring_transactions")
-      .select("*")
-      .eq("household_id", prof.household_id)
-      .order("start_date", { ascending: false });
-    setItems(recs ?? []);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { recurring: items, profilesMap, loading: dataLoading } = useData();
 
   const frequencyMap: Record<string, string> = {
     daily: "Daily",
@@ -73,7 +37,7 @@ export default function RecurringPage() {
         )}
       </div>
 
-      {loading ? (
+      {dataLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="skeleton h-[84px]" />

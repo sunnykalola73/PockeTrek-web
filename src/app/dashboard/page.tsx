@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Transaction, Profile, Household } from "@/lib/types";
 import { relativeDate } from "@/lib/dates";
 import { getCategoryEmoji, getCategoryLabel, useCategories } from "@/lib/categories";
+import { useData } from "@/lib/data";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -30,11 +31,15 @@ function getGreeting(): { emoji: string; text: string } {
 export default function DashboardPage() {
   const supabase = createClient();
   const { categories: cats } = useCategories();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [household, setHousehold] = useState<Household | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const {
+    profile,
+    household,
+    profilesMap,
+    transactions: globalTransactions,
+    loading: dataLoading,
+    refresh,
+  } = useData();
+
   const [showAddTx, setShowAddTx] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
 
@@ -42,6 +47,18 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Client-side filter
+  const transactions = globalTransactions.filter((tx) => {
+    if (typeFilter && tx.transaction_type !== typeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!tx.note?.toLowerCase().includes(q) && !tx.category.toLowerCase().includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const totalIncome = transactions
     .filter((t) => t.transaction_type === "income")
@@ -52,66 +69,6 @@ export default function DashboardPage() {
   const balance = totalIncome - totalExpenses;
 
   const greeting = getGreeting();
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
-    setProfile(prof);
-
-    if (!prof?.household_id) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: hh } = await supabase
-      .from("households")
-      .select("*")
-      .eq("id", prof.household_id)
-      .single();
-    setHousehold(hh);
-
-    const { data: members } = await supabase
-      .from("profiles")
-      .select("id, first_name")
-      .eq("household_id", prof.household_id);
-    const map: Record<string, string> = {};
-    members?.forEach((m) => {
-      map[m.id] = m.first_name ?? "User";
-    });
-    setProfilesMap(map);
-
-    let query = supabase
-      .from("transactions")
-      .select("*")
-      .eq("household_id", prof.household_id)
-      .order("transaction_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (typeFilter) query = query.eq("transaction_type", typeFilter);
-    if (search)
-      query = query.or(
-        `note.ilike.%${search}%,category.ilike.%${search}%`
-      );
-
-    const { data: txs } = await query;
-    setTransactions(txs ?? []);
-    setLoading(false);
-  }, [supabase, typeFilter, search]);
-
-  useEffect(() => {
-    const timer = setTimeout(loadData, search ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [loadData, search]);
 
   // Group transactions by date
   const grouped: Record<string, Transaction[]> = {};
@@ -126,6 +83,25 @@ export default function DashboardPage() {
     { value: "expense", label: "Expenses" },
     { value: "income", label: "Income" },
   ];
+
+  if (!dataLoading && (!profile || !profile.household_id)) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 lg:px-8 py-20 text-center space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+          <Wallet className="w-8 h-8 text-red-500" />
+        </div>
+        <h1 className="text-2xl font-bold">Profile Setup Incomplete</h1>
+        <p className="text-[rgb(var(--text-secondary))] max-w-md mx-auto">
+          It looks like your household wasn't created properly during sign-up, likely due to a database permissions issue. Please sign out and try creating a new account or contact support.
+        </p>
+        <div className="pt-4">
+          <button onClick={() => supabase.auth.signOut().then(() => window.location.href='/login')} className="btn-primary">
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto px-4 lg:px-8 py-8 space-y-8">
@@ -276,7 +252,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Transaction List ── */}
-      {loading ? (
+      {dataLoading ? (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="skeleton h-[68px]" />
@@ -390,7 +366,7 @@ export default function DashboardPage() {
             onSaved={() => {
               setShowAddTx(false);
               setEditingTx(null);
-              loadData();
+              refresh();
             }}
           />
         )}

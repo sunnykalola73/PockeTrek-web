@@ -25,7 +25,7 @@ export interface Profile {
 export interface Household {
   id: string;
   name: string;
-  created_by: string | null;
+
   created_at: string | null;
 }
 

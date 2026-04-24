@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Transaction, CategoryReport } from "@/lib/types";
 import { getCategoryEmoji, getCategoryLabel, useCategories } from "@/lib/categories";
+import { useData } from "@/lib/data";
 import { formatMonthYear, getMonthRange, relativeDate } from "@/lib/dates";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,18 +20,50 @@ import {
 import AddTransactionModal from "@/components/AddTransactionModal";
 
 export default function ReportsPage() {
-  const supabase = createClient();
   const { categories: cats } = useCategories();
+  const {
+    profile,
+    household,
+    profilesMap,
+    transactions: globalTransactions,
+    loading: dataLoading,
+    refresh,
+  } = useData();
+
   const [month, setMonth] = useState(new Date());
-  const [breakdown, setBreakdown] = useState<CategoryReport[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [userComp, setUserComp] = useState<Record<string, number>>({});
-  const [profilesMap, setProfilesMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
-  const [householdId, setHouseholdId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
+  // Client-side derivation
+  const { start, end } = getMonthRange(month);
+  
+  const transactions = globalTransactions.filter(
+    (tx) => tx.transaction_date >= start && tx.transaction_date < end
+  );
+
+  const catMap: Record<string, CategoryReport> = {};
+  const userMap: Record<string, number> = {};
+
+  for (const tx of transactions) {
+    const key = `${tx.category}_${tx.transaction_type}`;
+    if (!catMap[key]) {
+      catMap[key] = {
+        category: tx.category,
+        total_amount: 0,
+        transaction_count: 0,
+        transaction_type: tx.transaction_type,
+      };
+    }
+    catMap[key].total_amount += tx.amount;
+    catMap[key].transaction_count += 1;
+
+    if (tx.transaction_type === "expense" && tx.user_id) {
+      userMap[tx.user_id] = (userMap[tx.user_id] ?? 0) + tx.amount;
+    }
+  }
+
+  const breakdown = Object.values(catMap).sort((a, b) => b.total_amount - a.total_amount);
+  const userComp = userMap;
 
   const totalIncome = breakdown
     .filter((r) => r.transaction_type === "income")
@@ -39,81 +72,6 @@ export default function ReportsPage() {
     .filter((r) => r.transaction_type === "expense")
     .reduce((s, r) => s + r.total_amount, 0);
   const net = totalIncome - totalExpenses;
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    setUserId(user.id);
-
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("household_id")
-      .eq("id", user.id)
-      .single();
-    if (!prof?.household_id) return;
-    setHouseholdId(prof.household_id);
-
-    const { data: members } = await supabase
-      .from("profiles")
-      .select("id, first_name")
-      .eq("household_id", prof.household_id);
-    const map: Record<string, string> = {};
-    members?.forEach((m) => (map[m.id] = m.first_name ?? "User"));
-    setProfilesMap(map);
-
-    const { start, end } = getMonthRange(month);
-
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("household_id", prof.household_id)
-      .gte("transaction_date", start)
-      .lt("transaction_date", end)
-      .order("transaction_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (txs) {
-      setTransactions(txs);
-
-      const catMap: Record<string, CategoryReport> = {};
-      const userMap: Record<string, number> = {};
-
-      for (const tx of txs) {
-        const key = `${tx.category}_${tx.transaction_type}`;
-        if (!catMap[key]) {
-          catMap[key] = {
-            category: tx.category,
-            total_amount: 0,
-            transaction_count: 0,
-            transaction_type: tx.transaction_type,
-          };
-        }
-        catMap[key].total_amount += tx.amount;
-        catMap[key].transaction_count += 1;
-
-        if (tx.transaction_type === "expense" && tx.user_id) {
-          userMap[tx.user_id] = (userMap[tx.user_id] ?? 0) + tx.amount;
-        }
-      }
-
-      setBreakdown(
-        Object.values(catMap).sort((a, b) => b.total_amount - a.total_amount)
-      );
-      setUserComp(userMap);
-    } else {
-      setTransactions([]);
-      setBreakdown([]);
-      setUserComp({});
-    }
-    setLoading(false);
-  }, [supabase, month]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   // Reset expanded category when month changes
   useEffect(() => {
@@ -185,7 +143,7 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {dataLoading ? (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="skeleton h-[80px]" />
@@ -359,15 +317,15 @@ export default function ReportsPage() {
 
       {/* ── Edit Modal ── */}
       <AnimatePresence>
-        {editingTx && householdId && userId && (
+        {editingTx && household && profile && (
           <AddTransactionModal
-            householdId={householdId}
-            userId={userId}
+            householdId={household.id}
+            userId={profile.id}
             transaction={editingTx}
             onClose={() => setEditingTx(null)}
             onSaved={() => {
               setEditingTx(null);
-              loadData();
+              refresh();
             }}
           />
         )}
